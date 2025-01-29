@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import salesData from "../data/sales-data.json";
 import { ProcessedData, RawSalesData } from "../types/data";
 import { processData, calculateCorrelation, calculateCentralTendency } from "../utils/dataProcessing";
-import HeatMap from "../components/HeatMap";
+import BusinessHeatMap from "../components/BusinessHeatMap";
+import CategoryHeatMap from "../components/CategoryHeatMap";
+import SalesRadarChart from "../components/SalesRadarChart";
 import CorrelationMap from "../components/CorrelationMap";
 import CentralTendency from "../components/CentralTendency";
 import TrendAnalysis from "../components/TrendAnalysis";
@@ -18,11 +20,13 @@ import {
 
 const Index = () => {
   const [data, setData] = useState<ProcessedData[]>([]);
-  const [heatmapData, setHeatmapData] = useState<any[]>([]);
+  const [businessHeatmapData, setBusinessHeatmapData] = useState<any[]>([]);
+  const [categoryHeatmapData, setCategoryHeatmapData] = useState<any[]>([]);
   const [correlationData, setCorrelationData] = useState<any[]>([]);
   const [quantityStats, setQuantityStats] = useState({ mean: 0, median: 0 });
   const [valueStats, setValueStats] = useState({ mean: 0, median: 0 });
   const [trendData, setTrendData] = useState<any[]>([]);
+  const [radarData, setRadarData] = useState<any[]>([]);
 
   useEffect(() => {
     try {
@@ -44,20 +48,52 @@ const Index = () => {
       }];
       setTrendData(trendDataArray);
 
-      // Calculate heatmap data
-      const categories = [...new Set(processed.map(item => item.ANONYMIZED_CATEGORY))];
+      // Calculate business heatmap data
+      const months = [...new Set(processed.map(item => item.MONTH_YEAR))];
       const businesses = [...new Set(processed.map(item => item.ANONYMIZED_BUSINESS))];
       
-      const heatmapData = categories.map(category => ({
-        id: category,
+      const businessHeatmapData = months.map(month => ({
+        id: month,
         data: businesses.map(business => ({
           x: business,
           y: processed
-            .filter(item => item.ANONYMIZED_CATEGORY === category && item.ANONYMIZED_BUSINESS === business)
+            .filter(item => item.MONTH_YEAR === month && item.ANONYMIZED_BUSINESS === business)
             .reduce((sum, item) => sum + item.TOTAL_VALUE, 0)
         }))
       }));
-      setHeatmapData(heatmapData);
+      setBusinessHeatmapData(businessHeatmapData);
+
+      // Calculate category heatmap data
+      const categories = [...new Set(processed.map(item => item.ANONYMIZED_CATEGORY))];
+      
+      const categoryHeatmapData = months.map(month => ({
+        id: month,
+        data: categories.map(category => ({
+          x: category,
+          y: processed
+            .filter(item => item.MONTH_YEAR === month && item.ANONYMIZED_CATEGORY === category)
+            .reduce((sum, item) => sum + item.TOTAL_VALUE, 0)
+        }))
+      }));
+      setCategoryHeatmapData(categoryHeatmapData);
+
+      // Calculate radar data
+      const radarData = categories.map(category => {
+        const categoryTotal = processed
+          .filter(item => item.ANONYMIZED_CATEGORY === category)
+          .reduce((sum, item) => sum + item.TOTAL_VALUE, 0);
+        
+        const businessTotal = processed
+          .filter(item => businesses.includes(item.ANONYMIZED_BUSINESS))
+          .reduce((sum, item) => sum + item.TOTAL_VALUE, 0);
+
+        return {
+          category,
+          business: businessTotal / businesses.length,
+          category_sales: categoryTotal
+        };
+      });
+      setRadarData(radarData);
 
       // Calculate correlation data
       const metrics = ["QUANTITY", "UNIT_PRICE", "TOTAL_VALUE"];
@@ -109,6 +145,15 @@ const Index = () => {
           <TrendAnalysis data={trendData} />
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+          <BusinessHeatMap data={businessHeatmapData} />
+          <CategoryHeatMap data={categoryHeatmapData} />
+        </div>
+
+        <div className="grid grid-cols-1 gap-8 mb-8">
+          <SalesRadarChart data={radarData} />
+        </div>
+
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">Sales Data</h2>
           <div className="overflow-x-auto">
@@ -144,7 +189,6 @@ const Index = () => {
         </div>
 
         <div className="grid grid-cols-1 gap-8">
-          <HeatMap data={heatmapData} />
           <CorrelationMap correlationData={correlationData} />
         </div>
       </div>
